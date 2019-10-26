@@ -6,7 +6,7 @@
 
 ******************
 
-**Due: 1 week Tuesday 5 November
+**Due: 1 week Tuesday 5 November**
 
 
 **Description**: 
