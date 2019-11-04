@@ -14,7 +14,14 @@ class BFTMessage():
         self.size = num_agents
         self.root = BFTNode(self.size)
 
-    def add_message(self, msg, round, id):
+    def vote(self):
+        def majority_vote(node):
+            yes_num = 0
+
+            for i in range(1, self.size+1):
+                yes_num += node.children
+
+    def add_message(self, msg, round):
         val = msg['val']
         msg_chain = msg['msg_chain'].split(',')
         cur = self.root
@@ -22,30 +29,28 @@ class BFTMessage():
         for cur_node in msg_chain:
             index = int(cur_node)
             if cur.children[index] == None:
-                cur.children[index] = BFTNode(self.size)
+                cur.children[index] = BFTNode(self.size, index, val)
+                break
             cur = cur.children[index]
 
-        cur = BFTNode(self.size, id=id, val=val)
+    def get_message(self, round, id):
+        def build_message(cur_chain, cur_node, cur_round):
+            if cur_round == round:
+                cur_chain.append(str(id))
+                res.append({
+                    'val': cur_node.val,
+                    'msg_chain': ','.join(cur_chain)
+                })
+                return
+            
+            for child in cur_node.children:
+                if child != None:
+                    next_chain = copy.deepcopy(cur_chain)
+                    next_chain.append(str(child.id))
+                    build_message(next_chain, child, cur_round + 1)
 
-    def get_message(self, round):
         res = []
-        self.build_message(res, [], self.root, 0, round)
+        build_message([], self.root, 0)
         return res
-
-    def build_message(self, res, cur_chain, cur_node, cur_round, round):
-        if cur_round == round:
-            res.append({
-                'val': cur_node.val,
-                'msg_chain': ','.join(cur_chain)
-            })
-            return
-        
-        for child in cur_node.children:
-            if child != None:
-                if round == 1 and child.id == 1:
-                    print('dsaoubfoubd')
-                next_chain = copy.deepcopy(cur_chain)
-                next_chain.append(str(child.id))
-                self.build_message(res, next_chain, child, cur_round + 1, round)
 
 

@@ -28,7 +28,8 @@ class BFTAgent(multiprocessing.Process):
         # create console handler and set level to debug
         ch = logging.StreamHandler(sys.stdout)
         ch.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s:%(name)s:%(process)d:%(thread)d:%(levelname)s - %(message)s')
+        # formatter = logging.Formatter('%(asctime)s:%(name)s:%(process)d:%(thread)d:%(levelname)s - %(message)s')
+        formatter = logging.Formatter('%(name)s:%(process)d:%(thread)d:%(levelname)s - %(message)s')
         ch.setFormatter(formatter)
         self.logger.addHandler(ch)
 
@@ -65,7 +66,7 @@ class BFTAgent(multiprocessing.Process):
             roundi_recv.start()
             roundi_recv.join()
             roundi_send.join()
-            self.logger.info("%s finished round %d" %(type(self).__name__, i))
+            self.logger.info("%s %d finished round %d" %(type(self).__name__, self.id, i))
 
     def process_round_0(self):
         self.recv(0)
@@ -91,31 +92,33 @@ class BFTAgent(multiprocessing.Process):
             self.logger.info ("master told to go on round %d" %(round))
 
     def recv(self, round):
-        round_len = 2
+        round_len = 1
+        for i in range(0, round):
+            round_len = round_len * (len(self.agentudpport) - 2)
         msg_chain = ''
-        if round != 0:
-            round_len = len(self.agentudpport) - 1 
 
-        for i in range(1, round_len):
+        self.logger.info("%s %d expecting %d messages for round %d" %(type(self).__name__, self.id, round_len, round))
+        for i in range(0, round_len):
             msg = self.peersocket.recv(4096)
             msg = pickle.loads(msg)
             msg_src = msg['msg_chain'][-1]
 
-            self.msg_tree.add_message(msg, round, self.id)
+            self.msg_tree.add_message(msg, round)
 
             self.last_val = msg['val']
             self.logger.info("%s %d: round %s recv msg from %s, msg is: %s"%(type(self).__name__, self.id, round, msg_src, msg))
 
-
     def send(self, round):
+        send_list = self.msg_tree.get_message(round, self.id)
         for peer_id in self.agentudpport:
             if peer_id != self.id:
-                send_list = self.msg_tree.get_message(round)
+                self.logger.info("%s %d: round %d sending to %d with %d messages" %(type(self).__name__, self.id, round, peer_id, len(send_list)))
                 for msg in send_list:
                     send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                     send_socket.connect(("127.0.0.1", self.agentudpport[peer_id]))
                     send_socket.send(pickle.dumps(msg))
                     send_socket.close()
+
+                    self.logger.info("%s %d: round %s send to %d msg %s"%(type(self).__name__, self.id, round, peer_id, msg))
             
         
-        # self.logger.info("%s %d: round %s send msg %s"%(type(self).__name__, self.id, round, msg))
