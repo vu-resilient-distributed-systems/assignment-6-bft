@@ -16,7 +16,11 @@ import threading, socket
 import logging
 import json
 import utils
+from BFTAgent import BFTAgent
+from BFTGeneral import BFTGeneral
+from BFTTraitor import BFTTraitor
 
+'''
 # this function will be used by the BFT agent to recv message from other agents. the identity of who sent the message can be checked using recv from and the port from agentudpport dictionary
 def BFTAgent_recv(myid, agentSocket, logger, round):
     #do all code for receiving messages from peers
@@ -107,6 +111,7 @@ def BFTAgent (id):
     round2_send.join()
 
     return
+'''
 
 if __name__== '__main__':
     #make sure no default logging is set
@@ -117,9 +122,11 @@ if __name__== '__main__':
         config = json.load(f)
 
     agent_numbers = config['agent_numbers']
+    general_id = config['general_id']
+    traitor_ids = config['traitor_ids'].keys()
 
     agentudpport={}
-    for i in range(1,agent_numbers):
+    for i in range(1,agent_numbers+1):
         agentudpport[i]=6000+i
 
     masterRepPort = 5551
@@ -141,17 +148,27 @@ if __name__== '__main__':
     repSocket.bind("tcp://*:%s" % (masterRepPort))
     publisherSocket.bind("tcp://*:%s" % (masterPubPort))
     
-    readymsg=0
+    readymsg = 0
 
-    #launch the first BFT Agent. Launch other BFT agents like this.
-    p = mp.Process(target=BFTAgent, args=(1,))
-    p.start()
-    
-    utils.barrier_synchronization(1,publisherSocket,repSocket, logger)
-    
-    # join the child process. Note this is a blocking call
-    p.join()
+    agents = []
+    for i in range (1, agent_numbers+1):
+        if i == general_id:
+            general = BFTGeneral(i, masterRepPort, masterPubPort, config, agentudpport)
+            agents.append(general)
+        elif str(i) in traitor_ids:
+            traitor = BFTTraitor(i, masterRepPort, masterPubPort, config, agentudpport)
+            agents.append(traitor)
+        else:
+            agent = BFTAgent(i, masterRepPort, masterPubPort, config, agentudpport)
+            agents.append(agent)
 
+    for agent in agents:
+        agent.start()
+
+    utils.barrier_synchronization(agent_numbers, publisherSocket, repSocket, logger)
+
+    for agent in agents:
+        agent.join()
 
 
 
