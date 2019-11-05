@@ -4,10 +4,6 @@
 # When it receives 7 unique ids then it will allow everyone to start the rounds
 # The round message will be sent by a publisher
 
-'''
-runs for m+1 rounds where m is the traitos
-'''
-
 import zmq
 import sys
 import multiprocessing as mp
@@ -19,99 +15,6 @@ import utils
 from BFTAgent import BFTAgent
 from BFTGeneral import BFTGeneral
 from BFTTraitor import BFTTraitor
-
-'''
-# this function will be used by the BFT agent to recv message from other agents. the identity of who sent the message can be checked using recv from and the port from agentudpport dictionary
-def BFTAgent_recv(myid, agentSocket, logger, round):
-    #do all code for receiving messages from peers
-    logger.info("round BFTAgent_recv%s from agent %d"%(round,myid))
-
-# this function will be used by the BFT agent to seends message to other agents in a round. the  port for an agent is to be read from agentudpport dictionary
-def BFTAgent_send(myid, agentSocket, logger, round):
-    # connect to an Anget and send it a dictionary containing the path of the message and the message content
-    # then disconnect. Mak sure to connect to only one at a time.
-     logger.info("round BFTAgent_send %s from agent %d"%(round,myid))
-    
-
-def BFTAgentBarrier(reqsocket,subsocket,round):
-     
-    readymessage={
-        "id":1,
-        "status":"ready",
-        "round":round
-    }
-
-    #create to tell master I am ready. The same port will be used later to connect to other agents as required.
-
-    reqsocket.send_pyobj(readymessage)
-    msg=reqsocket.recv_string()
-    logger.info("now waiting for published go message from parent")
- 
-    msg=subsocket.recv_string()
-    logger.info("received message from parent")
-    if msg == "go":
-        logger.info ("master told to go")
-
-
-
-
-def BFTAgent (id):
-    logger=logging.getLogger('BFTAgent%s'%(id))
-    # create console handler and set level to debug
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s:%(name)s:%(process)d:%(thread)d:%(levelname)s - %(message)s')
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
-
-    #The BFT agent should setup a ZMQ  context
-    context =zmq.Context(io_threads=4)
-    logger.info("my pid is %s" %(os.getpid()))
-    #receive messages from the master to say that lets proceed on a round
-    subsocket= context.socket(zmq.SUB)
-    reqsocket=context.socket(zmq.REQ)
-    reqsocket.connect("tcp://localhost:%s" % (masterRepPort))
-    logger.info ("connected to parent rep")
-    subsocket.connect("tcp://localhost:%s" % (masterPubPort))
-    #dont forget to set the subscribe option.
-    logger.info("connected to parent pub")
-    subsocket.setsockopt(zmq.SUBSCRIBE, b"")
-    
-    
-    #use a udp socket to talk to my peers
-    peersocket= socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
-    peersocket.bind(('', agentudpport[id]))
-    
-    #Set up a socket based on your configuration file.
-    
-    BFTAgentBarrier(reqsocket,subsocket, 0)
-    logger.debug("BFT synchronization round 0" )    
-  
-    # note in round 0 all except the 1 should listen and get the message from the general. You need to fill some code.
-
-
-
-    #Now send the round messages to other BFT agents as required for Byzantine fault tolerance. But we will do this in rounds using threading API.
-    round1_recv = threading.Thread(target=BFTAgent_recv, args=(id,peersocket,logger,1,))
-    round1_send = threading.Thread(target=BFTAgent_send, args=(id,peersocket,logger,1,))
-    round1_send.start()
-    round1_recv.start()
-    round1_recv.join()
-    round1_send.join()
-
-    # process the round 1 
-
-
-    #start round 2.... do more rounds as required
-    round2_recv = threading.Thread(target=BFTAgent_recv, args=(id,peersocket,logger, 2,))
-    round2_send = threading.Thread(target=BFTAgent_send, args=(id,peersocket,logger,2,))
-    round2_send.start()
-    round2_recv.start()
-    round2_recv.join()
-    round2_send.join()
-
-    return
-'''
 
 if __name__== '__main__':
     #make sure no default logging is set
@@ -151,15 +54,16 @@ if __name__== '__main__':
     readymsg = 0
 
     agents = []
+    queue = mp.Queue()
     for i in range (1, agent_numbers+1):
         if i == general_id:
-            general = BFTGeneral(i, masterRepPort, masterPubPort, config, agentudpport)
+            general = BFTGeneral(i, masterRepPort, masterPubPort, config, agentudpport, queue)
             agents.append(general)
         elif str(i) in traitor_ids:
-            traitor = BFTTraitor(i, masterRepPort, masterPubPort, config, agentudpport)
+            traitor = BFTTraitor(i, masterRepPort, masterPubPort, config, agentudpport, queue)
             agents.append(traitor)
         else:
-            agent = BFTAgent(i, masterRepPort, masterPubPort, config, agentudpport)
+            agent = BFTAgent(i, masterRepPort, masterPubPort, config, agentudpport, queue)
             agents.append(agent)
 
     for agent in agents:
@@ -170,9 +74,27 @@ if __name__== '__main__':
     for agent in agents:
         agent.join()
 
+    # Process the values received by the agents to verify consensus was achieved
+    yes_num = 0
+    final_val = -1
+    true_val = -1
+    while not queue.empty():
+        obj = queue.get()
+        if type(obj) is str:
+            yes_num += int(obj)
+        else:
+            true_val = int(obj['true_val'])
+            yes_num += true_val
 
+    final_val = 1 if yes_num >= agent_numbers / 2 else 0
+    majority = max(yes_num, agent_numbers - yes_num)
 
-
-
-
-
+    logger.info("True value sent by general is: %d" %(true_val))
+    logger.info("Value agreed by lieutenants is: %d" %(final_val))
+    
+    if (final_val == true_val):
+        logger.info("Consensus achieved")
+        logger.info("Number of 'correct' agents: %d, out of %d agents" %(majority, agent_numbers))
+    else:
+        logger.info("Consensus was not achieved")
+        logger.info("Number of 'incorrect' agents: %d, out of %d agents" %(majority, agent_numbers))

@@ -9,18 +9,41 @@ class BFTNode():
         for i in range(0, size+1):
             self.children.append(None)
 
+# Tree class that represents the message tree of each agent
+# Root node is a pseudo node that has invalid values and points to first node, which is sent by the beloved General
 class BFTMessage():
     def __init__(self, num_agents):
         self.size = num_agents
         self.root = BFTNode(self.size)
 
+    # recursive method to do majority voting based on the values of children nodes
     def vote(self):
         def majority_vote(node):
             yes_num = 0
+            leaf_node = True
+            size = 0
 
-            for i in range(1, self.size+1):
-                yes_num += node.children
+            for child in node.children:
+                if child != None:
+                    leaf_node = False
+                    yes_num += int(majority_vote(child))
+                    size += 1
+            
+            if leaf_node:
+                return node.val
+            
+            return '1' if yes_num >= (self.size - 2) / 2 else '0'
 
+        # call majority_vote on the only child of root
+        for child in self.root.children:
+            if child != None:
+                return majority_vote(child)
+        
+        
+        # if root has no child, something is wrong
+        return 'e'
+
+    # add the current message to the tree by traversing through the message chain path
     def add_message(self, msg, round):
         val = msg['val']
         msg_chain = msg['msg_chain'].split(',')
@@ -33,6 +56,8 @@ class BFTMessage():
                 break
             cur = cur.children[index]
 
+    # get all messages for current with the id of the agent
+    # build the messages by doing BFS with backtracking from the top at the tree and stop when the message chain length is appropriate
     def get_message(self, round, id):
         def build_message(cur_chain, cur_node, cur_round):
             if cur_round == round:

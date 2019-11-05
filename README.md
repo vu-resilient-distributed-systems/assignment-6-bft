@@ -34,3 +34,6 @@ Make your code parameterizable. That is you can have N processes. Anyone can be 
 - [Class Material](https://github.com/vu-resilient-distributed-systems/lectures-fall-2019/tree/master/Module-5-AvoidingFailures)
 
 - https://medium.com/coinmonks/a-note-from-anthony-if-you-havent-already-please-read-the-article-gaining-clarity-on-key-787989107969
+
+**Submission information**
+- More information can be found in [Submission.md](./Submission.md)

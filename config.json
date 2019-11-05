@@ -1,9 +1,9 @@
 {
     "agent_numbers": 7,
     "rounds": 3,
-    "general_id": 1,
+    "general_id": 5,
     "traitor_ids": {
-        "3": 3,
-        "4": 4
+        "1": 1,
+        "5": 4
     }
 }
